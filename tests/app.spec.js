@@ -99,7 +99,7 @@ test("image workspace submits a background job and renders the generated image",
     model: "gpt-image-2",
     aspect: "landscape",
     resolution: "1k",
-    quality: "high",
+    quality: "1k",
     outputFormat: "png",
     mode: "text",
   });
@@ -204,7 +204,7 @@ test("image workspace sends 4K generation through the background job API", async
     prompt: "a long 4k prompt should use jobs",
     aspect: "landscape",
     resolution: "4k",
-    quality: "high",
+    quality: "4k",
     outputFormat: "jpeg",
     background: "auto",
     mode: "text",
@@ -312,7 +312,7 @@ test("image workspace sends selected quality and output format to background job
   await page.route("**/api/jobs", async (route) => {
     const body = route.request().postDataJSON();
     expect(body.resolution).toBe("4k");
-    expect(body.quality).toBe("high");
+    expect(body.quality).toBe("4k");
     expect(body.outputFormat).toBe("jpeg");
     expect(body.aspect).toBe("portrait");
     await route.fulfill({
@@ -344,6 +344,7 @@ test("image workspace sends selected quality and output format to background job
   await expect(page.locator("#meta")).toContainText("竖图");
   await expect(page.locator("#meta")).toContainText("4K");
   await expect(page.locator("#meta")).toContainText("jpeg");
+  await expect(page.locator("#meta")).not.toContainText("high");
 });
 
 test("image workspace reports background job failures without direct browser calls", async ({ page }) => {
@@ -423,7 +424,7 @@ test("image workspace shows retry status from background jobs before succeeding"
   await page.locator("#prompt").fill("retry status");
   await page.locator("#generate").click();
 
-  await expect(page.locator("#status")).toContainText("????");
+  await expect(page.locator("#status")).toContainText("自动重试");
   await expect(page.locator("#resultImage")).toBeVisible();
 });
 
