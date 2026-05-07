@@ -1,0 +1,6 @@
+name = "st-image2"
+pages_build_output_dir = "public"
+compatibility_date = "2026-05-06"
+
+[vars]
+JOBS_API_URL = "https://st-image2-api.onrender.com"
