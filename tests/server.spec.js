@@ -139,6 +139,45 @@ test("image API rejects missing prompts before calling OpenAI", async () => {
   expect(called).toBe(false);
 });
 
+test("image API explains upstream 403 errors without logging the full API key", async () => {
+  delete process.env.OPENAI_API_KEY;
+  delete require.cache[require.resolve("../server")];
+
+  const { handleGenerateImage } = require("../server");
+  const diagnostics = [];
+
+  await expect(
+    handleGenerateImage(
+      {
+        apiKey: "sk-1234567890abcdef",
+        prompt: "小狗",
+        model: "gpt-image-2",
+        aspect: "landscape",
+        resolution: "1k",
+        quality: "1k",
+        outputFormat: "png",
+        background: "auto",
+        baseUrl: "https://www.msutools.cn/v1",
+      },
+      {
+        logger: (event) => diagnostics.push(event),
+        fetchImpl: async () => ({
+          ok: false,
+          status: 403,
+          headers: { get: () => "application/json" },
+          json: async () => ({ error: { message: "invalid token or forbidden" } }),
+        }),
+      }
+    )
+  ).rejects.toThrow("上游拒绝请求：HTTP 403，原因：invalid token or forbidden");
+
+  const serialized = JSON.stringify(diagnostics);
+  expect(serialized).toContain("sk-1...cdef");
+  expect(serialized).not.toContain("sk-1234567890abcdef");
+  expect(serialized).toContain("https://www.msutools.cn/v1");
+  expect(serialized).toContain("403");
+});
+
 test("public settings return defaults without exposing or requiring an API key", async () => {
   delete require.cache[require.resolve("../server")];
 
