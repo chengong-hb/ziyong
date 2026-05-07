@@ -28,6 +28,47 @@ class AppError extends Error {
   }
 }
 
+function maskApiKey(apiKey) {
+  const value = String(apiKey || "").trim();
+  if (value.length <= 8) return value ? "***" : "";
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function summarizeErrorPayload(payload) {
+  const raw =
+    payload?.error?.message ||
+    payload?.error?.code ||
+    payload?.error ||
+    payload?.message ||
+    payload?.detail ||
+    "";
+  const text = typeof raw === "string" ? raw : JSON.stringify(raw || {});
+  return text.slice(0, 500) || "上游未返回详细原因";
+}
+
+function explainUpstreamError(status, payload) {
+  const reason = summarizeErrorPayload(payload);
+  if (status === 403) return `上游拒绝请求：HTTP 403，原因：${reason}`;
+  return reason === "上游未返回详细原因" ? `OpenAI 请求失败，HTTP ${status}，原因：${reason}` : reason;
+}
+
+function logDiagnostic(logger, event) {
+  if (typeof logger !== "function") return;
+  logger({
+    type: event.type || "image-api",
+    baseUrl: event.baseUrl,
+    model: event.body?.model,
+    mode: event.mode,
+    size: event.body?.size,
+    resolution: event.input?.resolution,
+    quality: event.body?.quality,
+    output_format: event.body?.output_format,
+    status: event.status,
+    error: event.error,
+    apiKey: maskApiKey(event.apiKey),
+  });
+}
+
 function cleanBaseUrl(baseUrl) {
   const raw = String(baseUrl || DEFAULT_BASE_URL).trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(raw)) {
@@ -211,6 +252,7 @@ async function handleGenerateImage(input, options = {}) {
     if (!image?.buffer) throw new AppError("请上传参考图片", 400);
     requestBody.image = imageToDataUrl(image);
   }
+  logDiagnostic(options.logger, { type: "image-request", input, apiKey, baseUrl, mode, body });
   const response = await fetchImpl(`${baseUrl}/images/generations`, {
     method: "POST",
     headers: {
@@ -222,8 +264,18 @@ async function handleGenerateImage(input, options = {}) {
   });
 
   const payload = await readJson(response);
+  logDiagnostic(options.logger, {
+    type: response.ok ? "image-response" : "image-error",
+    input,
+    apiKey,
+    baseUrl,
+    mode,
+    body,
+    status: response.status,
+    error: response.ok ? undefined : summarizeErrorPayload(payload),
+  });
   if (!response.ok) {
-    const message = payload.error?.message || payload.error || `OpenAI 请求失败，HTTP ${response.status}`;
+    const message = explainUpstreamError(response.status || 500, payload);
     throw new AppError(message, response.status || 500);
   }
 
@@ -235,6 +287,7 @@ async function handleGenerateImageStreaming(input, options = {}) {
   if (!apiKey) throw new AppError("请输入 API 密钥", 400);
   if (mode === "image") return handleGenerateImage(input, options);
 
+  logDiagnostic(options.logger, { type: "image-stream-request", input, apiKey, baseUrl, mode, body });
   const response = await (options.fetchImpl || fetch)(`${baseUrl}/images/generations`, {
     method: "POST",
     headers: {
@@ -251,7 +304,17 @@ async function handleGenerateImageStreaming(input, options = {}) {
 
   if (!response.ok) {
     const payload = await readJson(response);
-    const message = payload.error?.message || payload.error || `OpenAI 请求失败，HTTP ${response.status}`;
+    logDiagnostic(options.logger, {
+      type: "image-stream-error",
+      input,
+      apiKey,
+      baseUrl,
+      mode,
+      body,
+      status: response.status,
+      error: summarizeErrorPayload(payload),
+    });
+    const message = explainUpstreamError(response.status || 500, payload);
     throw new AppError(message, response.status || 500);
   }
 
@@ -360,5 +423,6 @@ module.exports = {
   buildOpenAIRequest,
   getPublicSettings,
   handleGenerateImage,
+  maskApiKey,
   streamGenerateImage,
 };
