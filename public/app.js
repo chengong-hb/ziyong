@@ -80,10 +80,11 @@ async function readJsonResponse(response) {
   try {
     return text ? JSON.parse(text) : {};
   } catch {
+    const contentType = response.headers?.get?.("content-type") || "未知类型";
     if (/^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
-      throw new Error("服务器返回了网页，不是生图接口结果。请关闭旧窗口，重新双击 ST 启动，并使用最新外网链接。");
+      throw new Error(`服务器返回了网页，不是接口 JSON。请刷新页面后重试；如果仍失败，请检查 Render 后端是否正在启动。HTTP ${response.status}，类型：${contentType}`);
     }
-    throw new Error("服务器返回内容不是 JSON，请重新启动 ST 后再试。");
+    throw new Error(`服务器返回内容不是 JSON。请刷新页面后重试；如果仍失败，请稍后再试或检查 Render 后端状态。HTTP ${response.status}，类型：${contentType}`);
   }
 }
 
@@ -254,7 +255,7 @@ function showMeta(record) {
     <dt>模型</dt><dd>${record.model}</dd>
     <dt>比例</dt><dd>${aspectLabels[record.aspect] || record.aspect}</dd>
     <dt>分辨率</dt><dd>${String(resolution).toUpperCase()}</dd>
-    <dt>质量</dt><dd>high</dd>
+    <dt>质量</dt><dd>${String(record.quality || resolution).toUpperCase()}</dd>
     <dt>格式</dt><dd>${outputFormat}</dd>
     <dt>预计图片尺寸</dt><dd>${target.join("x")}</dd>
     <dt>耗时</dt><dd>${formatDuration(record.durationMs)}</dd>
@@ -382,7 +383,7 @@ async function readDirectImageStream(response, onEvent) {
       if (/^\s*<!doctype html/i.test(text) || /^\s*<html/i.test(text)) {
         throw new Error("服务器返回了网页，不是生图接口结果。请检查接口地址是否正确。");
       }
-      throw new Error("服务器返回内容不是 JSON，请检查接口地址后再试。");
+      throw new Error("服务器返回内容不是 JSON。当前已使用云端任务通道，请刷新页面后重试；如果仍失败，请检查 Render 后端状态。");
     }
     return {
       images: Array.isArray(payload.data) ? payload.data.map(imageFromEvent).filter(Boolean) : [],
@@ -486,7 +487,7 @@ function makeJobRequestOptions(requestInput, referenceFile) {
 async function createGenerationJob(requestInput, referenceFile) {
   const response = await fetch("/api/jobs", makeJobRequestOptions(requestInput, referenceFile));
   const payload = await readJsonResponse(response);
-  if (!response.ok) throw openAIError(payload.error || `???????HTTP ${response.status}`, response.status);
+  if (!response.ok) throw openAIError(payload.error || `提交任务失败，HTTP ${response.status}`, response.status);
   return payload;
 }
 
@@ -498,7 +499,7 @@ async function pollGenerationJob(jobId, onEvent) {
       headers: { Accept: "application/json" },
     });
     const job = await readJsonResponse(response);
-    if (!response.ok) throw openAIError(job.error || `???????HTTP ${response.status}`, response.status);
+    if (!response.ok) throw openAIError(job.error || `查询任务失败，HTTP ${response.status}`, response.status);
     if (job.status === "succeeded") {
       return {
         ...job.result,
@@ -506,7 +507,7 @@ async function pollGenerationJob(jobId, onEvent) {
       };
     }
     if (job.status === "failed" || job.status === "cancelled") {
-      throw openAIError(job.error || "??????", 500);
+      throw openAIError(job.error || "生成任务失败", 500);
     }
     onEvent({
       type: job.attempts > 1 ? "retry" : "progress",
@@ -517,7 +518,7 @@ async function pollGenerationJob(jobId, onEvent) {
     });
     await wait(3000);
   }
-  throw new Error("???? 10 ?????????????");
+  throw new Error("生成超过 10 分钟仍未完成，请稍后重试。");
 }
 
 async function generate() {
@@ -560,20 +561,20 @@ async function generate() {
       prompt,
       aspect,
       resolution,
-      quality: "high",
+      quality: resolution,
       outputFormat,
       background,
       mode,
     };
     const handleEvent = (event) => {
       if (event.type === "progress") {
-        $("status").textContent = `????????? ${formatDuration(event.elapsedMs)}`;
+        $("status").textContent = `任务生成中，已等待 ${formatDuration(event.elapsedMs)}`;
       }
       if (event.type === "retry") {
-        $("status").textContent = `???????????????? ${event.attempt} ?`;
+        $("status").textContent = `上游暂时失败，后端正在自动重试第 ${event.attempt} 次`;
       }
     };
-    $("status").textContent = "??????????????...";
+    $("status").textContent = "任务已提交，后端正在稳定生成...";
     const job = await createGenerationJob(requestInput, referenceFile);
     const payload = await pollGenerationJob(job.jobId, handleEvent);
     if (!payload) throw new Error("生成失败，服务器没有返回图片结果");
@@ -588,6 +589,7 @@ async function generate() {
       thumbnailSrc,
       aspect,
       resolution,
+      quality: payload.quality || resolution,
       outputFormat,
       model,
       size,
@@ -605,7 +607,7 @@ async function generate() {
   } catch (error) {
     const message =
       error.message === "Failed to fetch"
-        ? "浏览器无法直连接口。可能是接口地址不通、跨域被拦截，或网络中断。"
+        ? "连接云端任务服务失败。可能是 Render 后端正在冷启动、网络中断，或云端服务暂时不可用。请稍后重试。"
         : error.message || "生成失败";
     showError(message);
     $("status").textContent = "生成失败";
