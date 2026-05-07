@@ -12,6 +12,10 @@ const { cancelImageJob, createImageJob, getImageJob } = require("./src/image-job
 
 const PUBLIC_DIR = path.join(__dirname, "public");
 
+function diagnosticLogger(event) {
+  console.info("[image2-diagnostic]", JSON.stringify(event));
+}
+
 function sendJson(res, status, data) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(data));
@@ -109,7 +113,7 @@ async function requestListener(req, res) {
     const url = new URL(req.url, "http://127.0.0.1");
     if (req.method === "POST" && url.pathname === "/api/generate") {
       const input = await readRequestInput(req);
-      sendJson(res, 200, await handleGenerateImage(input));
+      sendJson(res, 200, await handleGenerateImage(input, { logger: diagnosticLogger }));
       return;
     }
 
@@ -121,6 +125,7 @@ async function requestListener(req, res) {
         "X-Accel-Buffering": "no",
       });
       await streamGenerateImage(input, {
+        logger: diagnosticLogger,
         onEvent: (event) => sendNdjsonEvent(res, event),
       });
       res.end();
@@ -129,7 +134,7 @@ async function requestListener(req, res) {
 
     if (req.method === "POST" && url.pathname === "/api/jobs") {
       const input = await readRequestInput(req);
-      sendJson(res, 202, createImageJob(input));
+      sendJson(res, 202, createImageJob(input, { logger: diagnosticLogger }));
       return;
     }
 
@@ -202,6 +207,7 @@ module.exports = {
   cancelImageJob,
   createServer,
   createImageJob,
+  diagnosticLogger,
   getImageJob,
   getPublicSettings,
   handleGenerateImage,
