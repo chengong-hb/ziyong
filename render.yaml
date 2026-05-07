@@ -2,7 +2,7 @@ services:
   - type: web
     name: st-image2-api
     env: node
-    plan: starter
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/settings
