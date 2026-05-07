@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Image2 4K 生图工具</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="panel settings">
+        <div>
+          <p class="eyebrow">OpenAI 生图</p>
+          <h1>Image2 4K 生图工具</h1>
+        </div>
+        <label>
+          接口地址
+          <input id="baseUrl" aria-label="接口地址" value="https://api.openai.com/v1" autocomplete="off" data-lock />
+        </label>
+        <label>
+          API 密钥
+          <input id="apiKey" aria-label="API 密钥" type="password" placeholder="每个使用者填自己的密钥" autocomplete="off" required data-lock />
+        </label>
+        <label class="checkRow">
+          <input id="rememberApiKey" aria-label="记住本机密钥" type="checkbox" data-lock />
+          记住本机密钥
+        </label>
+        <label>
+          模型
+          <input id="model" aria-label="模型" value="gpt-image-2" autocomplete="off" data-lock />
+        </label>
+        <p id="settingsStatus" class="hint">API 密钥只用于本次请求；勾选后只保存在当前浏览器。</p>
+        <label>
+          模式
+          <select id="mode" aria-label="模式" data-lock>
+            <option value="text">文生图</option>
+            <option value="image">图生图</option>
+          </select>
+        </label>
+        <label id="referenceImageRow" hidden>
+          参考图片
+          <input id="referenceImage" aria-label="参考图片" type="file" accept="image/png,image/jpeg,image/webp" data-lock />
+        </label>
+        <label>
+          比例
+          <select id="aspect" aria-label="比例" data-lock>
+            <option value="landscape">横图</option>
+            <option value="portrait">竖图</option>
+            <option value="square">方图</option>
+          </select>
+        </label>
+        <label>
+          分辨率
+          <select id="resolution" aria-label="分辨率" data-lock>
+            <option value="1k">1K</option>
+            <option value="2k">2K</option>
+            <option value="4k">4K</option>
+          </select>
+        </label>
+        <label>
+          背景
+          <select id="background" data-lock>
+            <option value="auto">自动</option>
+            <option value="opaque">不透明</option>
+            <option value="transparent">透明</option>
+          </select>
+        </label>
+        <label>
+          输出格式
+          <select id="outputFormat" data-lock>
+            <option value="png">png</option>
+            <option value="jpeg">jpeg</option>
+            <option value="webp">webp</option>
+          </select>
+        </label>
+        <p class="hint">家人打开网址后填自己的 API 密钥就能使用。</p>
+      </aside>
+
+      <section class="workspace">
+        <section class="composer panel">
+          <label for="prompt">提示词</label>
+          <textarea id="prompt" aria-label="提示词" placeholder="描述你想生成的画面..." data-lock></textarea>
+          <div class="actions">
+            <button id="generate" type="button">生成图片</button>
+            <span id="status" role="status">等待输入</span>
+          </div>
+          <p id="error" role="alert" hidden></p>
+        </section>
+
+        <section class="preview panel">
+          <div class="previewTop">
+            <div>
+              <p class="eyebrow">预览</p>
+              <h2>生成结果</h2>
+            </div>
+            <div class="downloadActions">
+              <button id="saveImage" type="button" hidden>保存图片</button>
+            </div>
+          </div>
+          <div class="imageStage">
+            <div id="empty" class="empty">图片会出现在这里</div>
+            <img id="resultImage" alt="生成结果" hidden />
+          </div>
+          <dl id="meta" class="meta"></dl>
+        </section>
+      </section>
+
+      <aside class="panel history">
+        <div class="historyHead">
+          <div>
+            <p class="eyebrow">历史记录</p>
+            <h2>本地记录</h2>
+          </div>
+          <button id="clearHistory" type="button">清空</button>
+        </div>
+        <div id="historyList" class="historyList"></div>
+      </aside>
+    </main>
+    <div id="lightbox" class="lightbox" role="dialog" aria-label="图片预览" hidden>
+      <button id="closeLightbox" class="lightboxClose" type="button" aria-label="关闭图片预览">关闭</button>
+      <img id="lightboxImage" class="lightboxImage" alt="放大图片" />
+    </div>
+    <script src="/app.js?v=jobs-20260507"></script>
+  </body>
+</html>
